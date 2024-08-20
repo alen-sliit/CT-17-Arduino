@@ -1,0 +1,18 @@
+pendingMedicine = []
+send get request to server
+get the data and store it as a dictionary 
+
+if status = "pending"
+    add them to pendingMedicine
+
+get real time and check if equals with pendingMedicine
+    add medicine to monitorinMedicine
+    if equals start alarm with displaying details
+    
+    for medicine in monitorinMedicine    
+        if button not pressed &&  (real time - medinetime = 10)
+            send "missed" and notification
+        if button pressed 
+            rotate motor and give medicine
+            send "taken"
+        

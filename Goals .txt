@@ -1,0 +1,3 @@
+add function to start alarm
+add function to rotate motor
+add function to notify_missed_medicine
