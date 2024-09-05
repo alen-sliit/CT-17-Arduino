@@ -1,18 +1,21 @@
 import requests as requests
 import json as json
 import datetime
-# import machine
+
+from machine import Pin, PWM
 import time
-# from machine import Pin, Timer
+
+import sys
+import network
 
 # Lists to store pending and monitoring medicines
 pendingMedicine = {}
 monitoringMedicine = {}
 button_clicked = False
 
-# Pin setup for the button and motor (adjust according to your hardware)
-# button = Pin(14, Pin.IN, Pin.PULL_UP)  # Assume button connected to GPIO 14
-# motor = Pin(15, Pin.OUT)  # Assume motor connected to GPIO 15
+
+
+
 
 def fetch_data_from_server():
     try:
@@ -68,7 +71,7 @@ def monitor_medicines():
             time_diff += 60 
 
         if button_clicked:  # Button pressed 
-            rotate_motor()
+            set_servo_angle(0 + 45*int(medi))
             send_status_to_server(medi, "taken")
             monitoringMedicine.pop(medi)
             pendingMedicine.pop(medi)
