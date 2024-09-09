@@ -7,3 +7,5 @@ def toggleLight(pin):
     led.value(not led.value())
 
 sw.irq(handler=toggleLight, trigger=Pin.IRQ_FALLING)
+
+led.value(1)

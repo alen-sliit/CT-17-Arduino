@@ -1,0 +1,9 @@
+class LCD():
+    def __init__(self):
+        AddressOfLcd = 0x27
+        i2c = I2C(scl=Pin(22), sda=Pin(21), freq=400000)
+        # connect scl to GPIO 22, sda to GPIO 21
+        self.lcd = I2cLcd(i2c, AddressOfLcd, 2, 16)
+
+    def dispStr(self, prompt):
+        self.lcd.putstr(prompt)

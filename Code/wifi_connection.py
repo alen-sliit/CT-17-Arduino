@@ -2,6 +2,7 @@ import network
 import time
 import sys
 
+
 def scan_wifi():
     wlan = network.WLAN(network.STA_IF)
     wlan.active(True)
@@ -18,6 +19,7 @@ def scan_wifi():
         available_networks.append(ssid)
     
     return available_networks
+
 
 def connect_to_wifi(ssid, password):
     wlan = network.WLAN(network.STA_IF)

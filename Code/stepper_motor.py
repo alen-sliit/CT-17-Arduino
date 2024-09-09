@@ -1,6 +1,3 @@
-# More details can be found in TechToTinker.blogspot.com 
-# George Bantique | tech.to.tinker@gmail.com
-
 from machine import Pin
 from time import sleep_ms
 from time import sleep_us
@@ -11,9 +8,9 @@ def map(x, in_min, in_max, out_min, out_max):
                (in_max - in_min) + out_min)
     
 class GORILLACELL_STEPMOTOR:
-    def __init__(self, step_pin, dir_pin):
-        self.step = Pin(step_pin, Pin.OUT)
-        self.dir = Pin(dir_pin, Pin.OUT)
+    def __init__(self):
+        self.step = Pin(19, Pin.OUT)
+        self.dir = Pin(18, Pin.OUT)
 
     def rotate(self, angle=0, rotation='cw'):
         num_of_steps = map(angle, 0, 360, 0, 200)
@@ -32,7 +29,7 @@ class GORILLACELL_STEPMOTOR:
                self.step.value(0)
                sleep_us(500)       
 
-stepper = GORILLACELL_STEPMOTOR(step_pin=19, dir_pin=18)
+
 
 
 # The following lines of codes can be tested using the REPL:
