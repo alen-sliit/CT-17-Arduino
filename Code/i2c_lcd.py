@@ -10,7 +10,8 @@ MASK_RS = 0x01
 MASK_RW = 0x02 
 MASK_E = 0x04 
 SHIFT_BACKLIGHT = 3 
-SHIFT_DATA = 4 
+SHIFT_DATA = 4
+
 class I2cLcd(LcdApi): 
     """Implements a HD44780 character LCD connected via PCF8574 on I2C.""" 
     def __init__(self, i2c, i2c_addr, num_lines, num_columns): 

@@ -15,66 +15,83 @@ class LCD:
 
     def clear(self):
         self.lcd.clear()
+        
+class IR:
+    def __init__(self, sensor_pin):
+        """Initialize the IR sensor connected to the specified GPIO pin."""
+        self.sensor = Pin(sensor_pin, Pin.IN)
+
+    def is_bottle_removed(self):
+        """Check if the sensor detects that the bottle has been removed."""
+        # Return True if the sensor detects the bottle is removed (value == 1)
+        return self.sensor.value() == 1
 
 
 # Servo Motor Class
 class ServoMotor:
-    def __init__(self):
-        servo_pin = 15  # PWM-capable pin
-        frequency = 50  # Standard frequency for servos is 50Hz
-        self.pwm = PWM(Pin(servo_pin), freq=frequency)
+    def __init__(self, pin=15):
+        self.pin = pin
+        self.frequency = 50  # Standard frequency for servos (50Hz)
+        self.pwm = PWM(Pin(self.pin), freq=self.frequency)
+        self.min_duty = 40   # Duty cycle for 0 degrees (may need adjustment)
+        self.max_duty = 115  # Duty cycle for 180 degrees (may need adjustment)
+        self.current_angle = 0  # Track the current angle of the servo
 
-    def set_servo_angle(self, angle):
-        duty = int(40 + (angle / 180.0) * 75)
+    def set_angle(self, angle):
+        """Set the angle of the servo motor between 0 and 180 degrees."""
+        if angle < 0 or angle > 180:
+            raise ValueError("Angle must be between 0 and 180 degrees.")
+        
+        # Map the angle to the corresponding duty cycle
+        duty = int(self.min_duty + (angle / 180.0) * (self.max_duty - self.min_duty))
         self.pwm.duty(duty)
+        self.current_angle = angle  # Update the current angle
+        time.sleep(0.5)  # Allow time for the servo to reach the position
+
+    def initialize_to_zero(self):
+        """Initialize the servo to the zero position (0 degrees)."""
+        self.set_angle(0)
+        print("Servo initialized to 0 degrees.")
+
+    def detach(self):
+        """Detach the servo by stopping PWM."""
+        self.pwm.deinit()  # Stop PWM signal
 
 
 
-class GORILLACELL_STEPMOTOR:
+class STEPMOTOR:
     def __init__(self):
         IN1 = Pin(13, Pin.OUT)
         IN2 = Pin(12, Pin.OUT)
         IN3 = Pin(14, Pin.OUT)
         IN4 = Pin(27, Pin.OUT)
 
-# Define the step sequence for half-stepping
-half_step_sequence = [
-    [1, 0, 0, 0],
-    [1, 1, 0, 0],
-    [0, 1, 0, 0],
-    [0, 1, 1, 0],
-    [0, 0, 1, 0],
-    [0, 0, 1, 1],
-    [0, 0, 0, 1],
-    [1, 0, 0, 1],
-]
+    # Define the step sequence for half-stepping
+    half_step_sequence = [
+        [1, 0, 0, 0],
+        [1, 1, 0, 0],
+        [0, 1, 0, 0],
+        [0, 1, 1, 0],
+        [0, 0, 1, 0],
+        [0, 0, 1, 1],
+        [0, 0, 0, 1],
+        [1, 0, 0, 1],
+    ]
 
-# Function to set the motor coil states
-def set_step(self,w1, w2, w3, w4):
-    IN1.value(w1)
-    IN2.value(w2)
-    IN3.value(w3)
-    IN4.value(w4)
+    # Function to set the motor coil states
+    def set_step(self,w1, w2, w3, w4):
+        IN1.value(w1)
+        IN2.value(w2)
+        IN3.value(w3)
+        IN4.value(w4)
 
-# Function to rotate the motor
-def step_motor(self,steps, delay=2):
-    for _ in range(steps):
-        for step in half_step_sequence:
-            set_step(step[0], step[1], step[2], step[3])
-            time.sleep_ms(delay)
+    # Function to rotate the motor
+    def step_motor(self,steps, delay=2):
+        for _ in range(steps):
+            for step in half_step_sequence:
+                set_step(step[0], step[1], step[2], step[3])
+                time.sleep_ms(delay)
 
-# Main loop to control motor
-try:
-    while True:
-        step_motor(512)  # Rotate 512 steps (one full rotation)
-        time.sleep(2)
-        step_motor(-512)  # Rotate 512 steps in the opposite direction
-        time.sleep(2)
-
-except KeyboardInterrupt:
-    # Turn off all coils when the script is stopped
-    set_step(0, 0, 0, 0)
-    print("Motor stopped")
 
 # Alarm Class
 class Alarm:
@@ -101,11 +118,11 @@ class DoorControl:
         self.servo_motor = ServoMotor()
 
     def open_door(self):
-        self.servo_motor.set_servo_angle(180)
+        self.servo_motor.set_angle(10)
         print("Door opened.")
 
     def close_door(self):
-        self.servo_motor.set_servo_angle(90)
+        self.servo_motor.set_angle(0)
         print("Door closed.")
 
 # Custom RTC Class for DS1307
@@ -159,3 +176,5 @@ class RealTimeClock:
         data[1] = self.dec_to_bcd(month)
         data[2] = self.dec_to_bcd(year - 2000)  # Store only the last two digits of the year
         self.i2c.writeto_mem(self.DS1307_I2C_ADDR, 0x04, data)
+
+

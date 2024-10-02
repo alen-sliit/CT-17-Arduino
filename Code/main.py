@@ -1,72 +1,115 @@
 import time
-# import requests as requests
-# import json as json
-# import sys
-# import network
-
+import urequests  
+import ujson  
+import network
 # from mail_alert import AlertMail
 from machine import Pin
-from hardware import LCD, STEPMOTOR, DoorControl, Alarm, RealTimeClock
+from hardware import LCD, SG90Servo, DoorControl, Alarm, RealTimeClock, IR
 
 # Lists to store pending and monitoring medicines
 pendingMedicine = {}
 monitoringMedicine = {}
 
-button_enable = False
-button_clicked = False
-door_control = None 
+ipaddress = "192.168.167.228"
 
-# Initialize hardware components
-lcd = LCD()
-stepper = STEPMOTOR()
-door_control = DoorControl()  
-alarm = Alarm()  
-rtc = RealTimeClock()
-# def fetch_data_from_server():
-#     try:
-#         response = requests.get("http://localhost:3000/espGet")
-#         if response.status_code == 200:
-#             data = json.loads(response.text)
-#             print("received data from server = ", data)
-#             return data
-#         else:
-#             print("Error fetching data, status code:", response.status_code)
-#             return {}
-#     except Exception as e:
-#         print("Error:", e)
-#         return {}
+def getTime():
+    try:
+        # Send GET request to the server
+        response = urequests.get("http://worldtimeapi.org/api/timezone/Asia/Colombo")
+        if response.status_code == 200:
+            api_response = ujson.loads(response.text)
+            datetime_str = api_response['datetime']
 
+            # The datetime format is "YYYY-MM-DDTHH:MM:SS.SSSSSS±HH:MM"
+            hours = int(datetime_str[11:13])   # Slice out the hours part
+            minutes = int(datetime_str[14:16])  # Slice out the minutes part
+            seconds = int(datetime_str[17:19])
+            
+            # Extract year, month, and day using string slicing
+            # The datetime format is "YYYY-MM-DDTHH:MM:SS.SSSSSS±HH:MM"
+            year = int(datetime_str[0:4])   # Slice out the year part
+            month = int(datetime_str[5:7])  # Slice out the month part
+            day = int(datetime_str[8:10])   # Slice out the day part
+            
+            rtc.set_time(hours,minutes,seconds)
+            rtc.set_date(year, month, day)
+        else:
+            print("Error fetching data, status code:", response.status_code)
+            
+    except Exception as e:
+        print("Error:", e)
 
-# Function to create dummy data
-def fetch_dummy_data():
-    data = {
-        "1": {"medicineStatus": "pending", "medicineTime": "17:30"},
-        "2": {"medicineStatus": "pending", "medicineTime": "17:32"},
-        "3": {"medicineStatus": "missed", "medicineTime": "23:40"}
-    }
-    print("Using dummy data:", data)
-    return data
+def connectWifi():
+    # Initialize Wi-Fi in station mode
+    sta_if = network.WLAN(network.STA_IF)
+    sta_if.active(True)
+
+    ssid = "realme C53"
+    password = "12345678"
+    # Connect to the selected network
+    print(f"Connecting to {ssid}...")
+    sta_if.connect(ssid, password)
+
+    # Check connection status
+    if sta_if.isconnected():
+        lcd.dispStr("\nConnected!")
+        lcd.dispStr(f"Network config: {sta_if.ifconfig()}", )
+    else:
+        lcd.dispStr("\nFailed to connect. Please check your password and try again.")
+    time.sleep(5)
+    lcd.clear()
+    
+def fetch_data_from_server():
+    try:
+        # Send GET request to the server
+        response = urequests.get(f"http://{ipaddress}:3000/espGet")
+        if response.status_code == 200:
+            # Parse JSON response
+            data = ujson.loads(response.text)
+            print("received data from server =", data)
+            return data
+        else:
+            # Handle non-200 status codes
+            print("Error fetching data, status code:", response.status_code)
+            return {}
+    except Exception as e:
+        # Handle any exceptions (e.g., network error)
+        print("Error:", e)
+        return {}
 
 # Setup button
-def setup_button_interrupt(pin_number, door_control_instance):
-    global door_control
-    door_control = door_control_instance  # Set the DoorControl instance
+def setup_button_interrupt(pin_number):
     medi_sw = Pin(pin_number, Pin.IN, Pin.PULL_UP)
     medi_sw.irq(trigger=Pin.IRQ_FALLING, handler=button_pressed)
 
 def button_pressed(pin):
-    global button_enable, button_clicked, door_control
-    if button_enable and door_control:
+    global button_enable, button_clicked
+    button_clicked = True
+    if button_enable:
         print("Button pressed.")
-        button_clicked = True
-        print("opening door....")
-        #door_control.open_door()
-        time.sleep(10)
-        #door_control.close_door()
-        print("closing door....")
+        bottle_taken = False
+        time_elapsed = 0
         button_enable = False
 
-setup_button_interrupt(18, door_control)
+        door_control.open_door() 
+        
+        while time_elapsed <= 30:
+            if ir_sensor.is_bottle_removed():
+                print(f"Pill bottle {medi} removed. Waiting for it to be put back.")
+                print(f"Pill bottle {medi} put back. Door closing.")
+                time.sleep(15)
+                door_control.close_door()
+                break
+  
+            time.sleep(1)  # Sleep for 1 second between checks
+            time_elapsed += 1
+             
+        
+        # If no bottle was taken after 30 seconds, or it was put back, close the door
+        if not bottle_taken:
+            print("No pill bottle taken after 30 seconds. Door closing.")
+            door_control.close_door()
+
 
 # Add pending medicines to the pendingMedicine list
 def process_medicines(medicines):
@@ -79,45 +122,34 @@ def process_medicines(medicines):
 # function to sound the alarm
 def start_alarm(medicine):
     lcd.dispStr(f"Take medicine {medicine}")
-    alarm.start_buzzer()
-
-# Clears screen
-def clear_display():
-    lcd.clear()
+    # alarm.start_buzzer()
 
 # Set the desired date and time
-rtc.set_time(17, 30, 0)
-rtc.set_date(3, 25, 9, 2024)
-
 def display_time_and_date():
     current_time = rtc.get_formatted_time()
     current_date = rtc.get_date()
     
     lcd.clear()
-    lcd.dispStr(f"Time:{current_time}\n")  
+    lcd.dispStr(f"Time:{current_time}      ")  
     lcd.dispStr(f"Date:{current_date}")  
     time.sleep(0.5)
 
 def check_pending_medicines():
     global pendingMedicine, monitoringMedicine
-    found_medicine = False
-    while not found_medicine:
-        display_time_and_date()  
-        current_time = rtc.get_formatted_time()
+    
+    display_time_and_date()   
+    current_time = rtc.get_formatted_time()
         
-        for medi, medi_time in list(pendingMedicine.items()):
-            if medi_time == current_time:
-                lcd.clear()
-                stepper.attach()
-                stepper.rotate(int(medi), 'cw')
-                stepper.detach()
-                # Move to monitoring list
-                monitoringMedicine[medi] = pendingMedicine[medi]  
-                pendingMedicine.pop(medi)  
-                start_alarm(medi)  
-                found_medicine = True
-                return medi
-        time.sleep(1)  
+    for medi, medi_time in list(pendingMedicine.items()):
+        if medi_time == current_time:
+            lcd.clear()
+            stepper.attach()
+            stepper.rotate(int(medi))
+            stepper.detach()
+            # Move to monitoring list
+            monitoringMedicine[medi] = pendingMedicine[medi]  
+            pendingMedicine.pop(medi)  
+            start_alarm(medi)   
 
 # Function to monitor taken or missed medicines
 def monitor_medicines():
@@ -128,69 +160,80 @@ def monitor_medicines():
         medi = list(monitoringMedicine.keys())[0]
         print(f"Time to take medicine {medi}. Waiting for button press...")
         button_enable = True
-        button_clicked = False
 
         # Wait for button press or timeout
-        while elapsed_time <= 100 and not button_clicked:
+        while elapsed_time <= 100:
             print("Waiting for button press or timeout...")
             time.sleep(5)
             elapsed_time += 50
-
+        
+        lcd.clear()
+        
         if button_clicked:
-            clear_display()
             lcd.dispStr("Medicine taken")
             send_status_to_server(medi, "taken")
             print(f"Medicine {medi} taken.")
-            stepper.attach()
-            stepper.rotate(int(medi), 'ccw')
-            stepper.detach()
         else:
             print(f"Medicine {medi} missed.")
             send_status_to_server(medi, "missed")
-            stepper.attach()
-            stepper.rotate(int(medi), 'ccw')
-            stepper.detach()
+        stepper.attach()
+        stepper.rotate(8 - int(medi))
+        stepper.detach()
 
         monitoringMedicine.pop(medi)
-        clear_display()
+        lcd.clear()
 
-# Simulate sending medicine status back to the server
 def send_status_to_server(medicine, status):
     print(f"Sending Medicine {medicine} status '{status}' to server.")
+    
+    try:
+        data = {
+           medicine: status
+        }
+        json_data = ujson.dumps(data)  # Convert to JSON string
+        response = urequests.post(f"http://{ipaddress}:3000/espPost", data=json_data, headers={"Content-Type": "application/json"})
+        
+        if response.status_code == 200:
+            print("Status sent successfully:", status)
+        else:
+            print("Failed to send status:", response.status_code)
+        
+        response.close()  # Always close the response to free memory
+    except Exception as e:
+        print("Error:", e)
 
 
-# # Function to send medicine status back to the server
-# def send_status_to_server(medicine, status):
-#     try:
-#         data = {
-#             medicine: status
-#         }
-#         response = requests.post("http://localhost:3000/espPost", json=data)
-#         if response.status_code == 200:
-#             print("Status sent successfully:", status)
-#         else:
-#             print("Failed to send status:", response.status_code)
-#     except Exception as e:
-#         print("Error:", e)
+# Notify user about missed medicine (add custom notification logic here)
+def notify_missed_medicine(medicine):
+    alert_mail.send_alert(medicine)
 
+# Initialize hardware components
+lcd = LCD()
+# stepper = STEPMOTOR()
+door_control = DoorControl()  
+alarm = Alarm()  
+rtc = RealTimeClock()
+setup_button_interrupt(18)
+ir_sensor = IR(4)
 
-# # Notify user about missed medicine (add custom notification logic here)
-# def notify_missed_medicine(medicine):
-#     alert_mail.send_alert(medicine)
+button_clicked = False
+
+connectWifi()
+getTime()
 
 # Main loop
 def main_loop():
-    alarm.stop_buzzer()
-    
     while True:
-        medicines = fetch_dummy_data()
+        medicines = fetch_data_from_server()
         process_medicines(medicines)
 
-        while pendingMedicine or monitoringMedicine:
-            if pendingMedicine:
-                check_pending_medicines()
-            if monitoringMedicine:
-                monitor_medicines()
-            time.sleep(20)
+        if pendingMedicine:
+            check_pending_medicines()
+        if monitoringMedicine:
+            monitor_medicines()
+        time.sleep(20)
 
 main_loop()
+
+
+
